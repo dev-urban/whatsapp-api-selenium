@@ -5,7 +5,7 @@ WhatsApp API - Selenium Bot
 API para envio de mensagens via WhatsApp Web
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from functools import wraps
 import os
 import time
