@@ -46,6 +46,7 @@ function initializeWhatsApp() {
         }),
         puppeteer: {
             headless: true,
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_BIN || '/nix/var/nix/profiles/default/bin/chromium',
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
