@@ -36,9 +36,34 @@ function requireAuth(req, res, next) {
     next();
 }
 
+// Detectar caminho do Chromium
+function findChromiumPath() {
+    const possiblePaths = [
+        process.env.PUPPETEER_EXECUTABLE_PATH,
+        process.env.CHROME_BIN,
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/google-chrome',
+        '/nix/var/nix/profiles/default/bin/chromium',
+        '/root/.nix-profile/bin/chromium'
+    ];
+
+    for (const chromePath of possiblePaths) {
+        if (chromePath && fs.existsSync(chromePath)) {
+            console.log(`✅ Chromium encontrado em: ${chromePath}`);
+            return chromePath;
+        }
+    }
+
+    console.log('⚠️ Chromium não encontrado em caminhos conhecidos, usando padrão do Puppeteer');
+    return undefined; // Deixa Puppeteer usar o padrão
+}
+
 // Inicializar WhatsApp Client
 function initializeWhatsApp() {
     console.log('🚀 Iniciando WhatsApp Client...');
+
+    const chromiumPath = findChromiumPath();
 
     whatsappClient = new Client({
         authStrategy: new LocalAuth({
@@ -46,7 +71,7 @@ function initializeWhatsApp() {
         }),
         puppeteer: {
             headless: true,
-            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_BIN || '/nix/var/nix/profiles/default/bin/chromium',
+            executablePath: chromiumPath,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',

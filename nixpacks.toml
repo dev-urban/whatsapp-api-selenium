@@ -1,8 +1,11 @@
 [phases.setup]
-nixPkgs = ["nodejs_18", "chromium"]
+nixPkgs = ["nodejs_18", "chromium", "nss", "freetype", "harfbuzz", "ca-certificates", "fontconfig"]
 
 [phases.install]
 cmds = ["npm install"]
 
+[phases.setup]
+nixPkgsLibs = ["nss", "freetype", "harfbuzz"]
+
 [start]
-cmd = "npm start"
+cmd = "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true PUPPETEER_EXECUTABLE_PATH=$(which chromium) npm start"
