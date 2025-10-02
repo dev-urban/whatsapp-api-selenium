@@ -56,14 +56,23 @@ class WhatsAppClient:
             chrome_options = Options()
             if headless_mode:
                 chrome_options.add_argument("--headless=new")  # Novo modo headless
+
+            # User agent real para não ser detectado como bot
+            chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--disable-software-rasterizer")
             chrome_options.add_argument("--disable-extensions")
+            chrome_options.add_argument("--disable-blink-features=AutomationControlled")  # Remove flag de automação
             chrome_options.add_argument("--window-size=1920,1080")
             chrome_options.add_argument("--user-data-dir=/tmp/chrome_profile")
-            chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
+            chrome_options.add_argument("--lang=pt-BR")
+
+            # Remove indicadores de webdriver
+            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
+            chrome_options.add_experimental_option('useAutomationExtension', False)
 
             print("🔧 Configurações do Chrome aplicadas")
             print(f"   - Headless: {headless_mode}")
@@ -71,13 +80,28 @@ class WhatsAppClient:
 
             print("🌐 Iniciando ChromeDriver...")
             self.driver = webdriver.Chrome(options=chrome_options)
+
+            # Remove propriedade navigator.webdriver para parecer navegador real
+            self.driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+                'source': '''
+                    Object.defineProperty(navigator, 'webdriver', {
+                        get: () => undefined
+                    })
+                '''
+            })
+
             print("✅ ChromeDriver iniciado com sucesso")
 
             self.wait = WebDriverWait(self.driver, 30)
 
             print("📡 Acessando WhatsApp Web...")
             self.driver.get("https://web.whatsapp.com")
-            print(f"✅ Página carregada: {self.driver.title}")
+
+            # Aguarda página carregar completamente
+            time.sleep(5)
+
+            print(f"✅ Página carregada: {self.driver.title if self.driver.title else 'Carregando...'}")
+            print(f"📍 URL atual: {self.driver.current_url}")
 
             if headless_mode:
                 print("📱 WhatsApp Web carregado (headless)")
