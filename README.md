@@ -1,6 +1,6 @@
-# WhatsApp API - Selenium Bot
+# WhatsApp API - whatsapp-web.js
 
-API REST para envio de mensagens via WhatsApp Web usando Selenium (simula digitação humana).
+API REST para envio de mensagens via WhatsApp Web usando whatsapp-web.js (leve e estável).
 
 ## 🚀 Deploy no Railway
 
