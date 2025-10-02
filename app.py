@@ -324,14 +324,21 @@ def send_image_message(instance):
 
 @app.route('/qr', methods=['GET'])
 def get_qr():
-    """Retorna informações sobre o QR code (para debug)"""
+    """Retorna screenshot da página para ver o QR code"""
     if not whatsapp_client:
         return jsonify({"message": "Cliente não inicializado"}), 503
 
     if whatsapp_client.is_ready:
         return jsonify({"message": "WhatsApp já está conectado"}), 200
-    else:
-        return jsonify({"message": "Escaneie o QR code no navegador"}), 200
+
+    try:
+        # Tira screenshot da página
+        screenshot = whatsapp_client.driver.get_screenshot_as_png()
+
+        # Retorna como imagem
+        return Response(screenshot, mimetype='image/png')
+    except Exception as e:
+        return jsonify({"error": f"Erro ao capturar QR Code: {str(e)}"}), 500
 
 
 def inicializar_whatsapp():
