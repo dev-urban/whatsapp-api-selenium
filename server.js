@@ -45,6 +45,10 @@ function requireAuth(req, res, next) {
 
 // Detectar caminho do Chromium
 function findChromiumPath() {
+    console.log('🔍 Procurando Chromium...');
+    console.log('PATH:', process.env.PATH);
+    console.log('PUPPETEER_EXECUTABLE_PATH:', process.env.PUPPETEER_EXECUTABLE_PATH);
+
     const possiblePaths = [
         process.env.PUPPETEER_EXECUTABLE_PATH,
         process.env.CHROME_BIN,
@@ -55,7 +59,9 @@ function findChromiumPath() {
         '/root/.nix-profile/bin/chromium'
     ];
 
+    console.log('Testando caminhos possíveis...');
     for (const chromePath of possiblePaths) {
+        console.log(`  Testando: ${chromePath} - Existe: ${chromePath ? fs.existsSync(chromePath) : 'undefined'}`);
         if (chromePath && fs.existsSync(chromePath)) {
             console.log(`✅ Chromium encontrado em: ${chromePath}`);
             return chromePath;
@@ -63,15 +69,18 @@ function findChromiumPath() {
     }
 
     // Tentar usar o comando 'which' para encontrar chromium
+    console.log('Tentando usar "which" para encontrar chromium...');
     try {
         const { execSync } = require('child_process');
-        const chromiumPath = execSync('which chromium 2>/dev/null || which chromium-browser 2>/dev/null').toString().trim();
-        if (chromiumPath && fs.existsSync(chromiumPath)) {
-            console.log(`✅ Chromium encontrado via 'which': ${chromiumPath}`);
-            return chromiumPath;
+        const whichResult = execSync('which chromium 2>&1 || which chromium-browser 2>&1 || echo "not found"').toString().trim();
+        console.log(`Resultado do which: ${whichResult}`);
+
+        if (whichResult && whichResult !== 'not found' && fs.existsSync(whichResult)) {
+            console.log(`✅ Chromium encontrado via 'which': ${whichResult}`);
+            return whichResult;
         }
     } catch (e) {
-        // Ignorar erro se which não funcionar
+        console.log('Erro ao executar which:', e.message);
     }
 
     throw new Error('❌ Chromium não encontrado! Instale chromium ou defina PUPPETEER_EXECUTABLE_PATH');
