@@ -37,24 +37,19 @@ function requireAuth(req, res, next) {
 }
 
 // Inicializar WhatsApp Client
-function initializeWhatsApp() {
-    console.log('🚀 Iniciando WhatsApp Client com Puppeteer bundled Chromium...');
+async function initializeWhatsApp() {
+    console.log('🚀 Iniciando WhatsApp Client com Chromium otimizado...');
+
+    const chromium = require('@sparticuz/chromium');
 
     whatsappClient = new Client({
         authStrategy: new LocalAuth({
             dataPath: './.wwebjs_auth'
         }),
         puppeteer: {
-            headless: true,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--disable-gpu'
-            ]
+            headless: chromium.headless,
+            executablePath: await chromium.executablePath(),
+            args: chromium.args
         }
     });
 

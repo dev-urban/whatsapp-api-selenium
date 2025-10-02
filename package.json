@@ -15,7 +15,8 @@
     "whatsapp-web.js": "^1.23.0",
     "qrcode": "^1.5.3",
     "axios": "^1.6.2",
-    "puppeteer": "^21.0.0"
+    "puppeteer-core": "^21.0.0",
+    "@sparticuz/chromium": "^119.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
