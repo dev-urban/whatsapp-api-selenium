@@ -1,8 +1,5 @@
 [phases.setup]
-nixPkgs = ["python310", "chromium", "chromedriver"]
-
-[phases.install]
-cmds = ["pip install -r requirements.txt"]
+nixPkgs = ["chromium", "chromedriver"]
 
 [start]
 cmd = "python app.py"
