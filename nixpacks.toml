@@ -1,11 +1,30 @@
 [phases.setup]
-nixPkgs = ["nodejs_18", "chromium", "nss", "freetype", "harfbuzz", "ca-certificates", "fontconfig"]
+nixPkgs = [
+    "nodejs_18",
+    "chromium",
+    "nss",
+    "freetype",
+    "harfbuzz",
+    "ca-certificates",
+    "fontconfig",
+    "glib",
+    "gtk3",
+    "pango",
+    "cairo",
+    "atk",
+    "gdk-pixbuf",
+    "libdrm",
+    "mesa",
+    "xorg.libX11",
+    "xorg.libXcomposite",
+    "xorg.libXdamage",
+    "xorg.libXext",
+    "xorg.libXfixes",
+    "xorg.libXrandr"
+]
 
 [phases.install]
-cmds = ["npm install"]
-
-[phases.setup]
-nixPkgsLibs = ["nss", "freetype", "harfbuzz"]
+cmds = ["npm install --legacy-peer-deps"]
 
 [start]
 cmd = "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true PUPPETEER_EXECUTABLE_PATH=$(which chromium) npm start"
