@@ -45,6 +45,46 @@ class WhatsAppClient:
         self.is_ready = False
         self.initialization_error = None
 
+    def verificar_conexao(self):
+        """Verifica se o Chrome ainda está conectado"""
+        try:
+            if not self.driver:
+                return False
+            # Tenta obter URL atual para verificar conexão
+            _ = self.driver.current_url
+            return True
+        except:
+            return False
+
+    def reconectar(self):
+        """Reconecta ao Chrome se perdeu conexão"""
+        print("🔄 Detectado desconexão! Tentando reconectar...")
+
+        try:
+            if self.driver:
+                try:
+                    self.driver.quit()
+                except:
+                    pass
+
+            self.is_ready = False
+            self.iniciar()
+
+            # Aguarda login novamente
+            print("⏳ Aguardando login após reconexão...")
+            max_tentativas = 12  # 1 minuto
+            for i in range(max_tentativas):
+                if self.verificar_login():
+                    print("✅ Reconectado com sucesso!")
+                    return True
+                time.sleep(5)
+
+            print("❌ Falha ao reconectar")
+            return False
+        except Exception as e:
+            print(f"❌ Erro ao reconectar: {e}")
+            return False
+
     def iniciar(self):
         """Inicia o Chrome e WhatsApp Web"""
         try:
@@ -288,7 +328,7 @@ def process_message_queue():
 
             print(f"📤 Processando mensagem {task_id} ({task_type})")
 
-            # Processa a mensagem
+            # Verifica se WhatsApp está pronto
             if not whatsapp_client or not whatsapp_client.is_ready:
                 queue_status[task_id]['status'] = 'error'
                 queue_status[task_id]['error'] = 'WhatsApp não está pronto'
@@ -296,20 +336,52 @@ def process_message_queue():
                 message_queue.task_done()
                 continue
 
+            # Verifica conexão antes de enviar
+            if not whatsapp_client.verificar_conexao():
+                print("⚠️ Conexão perdida! Tentando reconectar...")
+                if not whatsapp_client.reconectar():
+                    queue_status[task_id]['status'] = 'error'
+                    queue_status[task_id]['error'] = 'Falha ao reconectar ao Chrome'
+                    queue_status[task_id]['completed_at'] = datetime.now().isoformat()
+                    message_queue.task_done()
+                    continue
+
             with client_lock:
-                if task_type == 'text':
-                    result = whatsapp_client.enviar_mensagem(
-                        task_data['to'],
-                        task_data['text']
-                    )
-                elif task_type == 'image':
-                    result = whatsapp_client.enviar_imagem(
-                        task_data['to'],
-                        task_data['imageUrl'],
-                        task_data.get('caption')
-                    )
-                else:
-                    result = {'success': False, 'error': 'Tipo de mensagem inválido'}
+                try:
+                    if task_type == 'text':
+                        result = whatsapp_client.enviar_mensagem(
+                            task_data['to'],
+                            task_data['text']
+                        )
+                    elif task_type == 'image':
+                        result = whatsapp_client.enviar_imagem(
+                            task_data['to'],
+                            task_data['imageUrl'],
+                            task_data.get('caption')
+                        )
+                    else:
+                        result = {'success': False, 'error': 'Tipo de mensagem inválido'}
+
+                    # Se deu erro de conexão, tenta reconectar
+                    if not result['success'] and ('disconnected' in result.get('error', '').lower() or 'not connected' in result.get('error', '').lower()):
+                        print("⚠️ Erro de conexão detectado! Tentando reconectar...")
+                        if whatsapp_client.reconectar():
+                            # Tenta enviar novamente
+                            print(f"🔄 Reenviando mensagem {task_id}...")
+                            if task_type == 'text':
+                                result = whatsapp_client.enviar_mensagem(
+                                    task_data['to'],
+                                    task_data['text']
+                                )
+                            elif task_type == 'image':
+                                result = whatsapp_client.enviar_imagem(
+                                    task_data['to'],
+                                    task_data['imageUrl'],
+                                    task_data.get('caption')
+                                )
+
+                except Exception as e:
+                    result = {'success': False, 'error': str(e)}
 
             # Atualiza status
             if result['success']:
