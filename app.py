@@ -12,6 +12,9 @@ import time
 import random
 import threading
 import requests
+import uuid
+from queue import Queue
+from datetime import datetime
 from io import BytesIO
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -30,41 +33,65 @@ BEARER_TOKEN = os.getenv('BEARER_TOKEN', 'eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.e
 whatsapp_client = None
 client_lock = threading.Lock()
 
+# Fila de mensagens
+message_queue = Queue()
+queue_status = {}  # Armazena status de cada mensagem na fila
+
 
 class WhatsAppClient:
     def __init__(self):
         self.driver = None
         self.wait = None
         self.is_ready = False
+        self.initialization_error = None
 
     def iniciar(self):
         """Inicia o Chrome e WhatsApp Web"""
-        print("🚀 Iniciando Chrome...")
+        try:
+            print("🚀 Iniciando Chrome...")
 
-        # Modo headless apenas se variável de ambiente estiver definida
-        headless_mode = os.getenv('HEADLESS', 'true').lower() == 'true'
+            # Modo headless apenas se variável de ambiente estiver definida
+            headless_mode = os.getenv('HEADLESS', 'true').lower() == 'true'
 
-        chrome_options = Options()
-        if headless_mode:
-            chrome_options.add_argument("--headless")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument("--user-data-dir=/tmp/chrome_profile")
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
+            chrome_options = Options()
+            if headless_mode:
+                chrome_options.add_argument("--headless=new")  # Novo modo headless
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--disable-software-rasterizer")
+            chrome_options.add_argument("--disable-extensions")
+            chrome_options.add_argument("--window-size=1920,1080")
+            chrome_options.add_argument("--user-data-dir=/tmp/chrome_profile")
+            chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
 
-        self.driver = webdriver.Chrome(options=chrome_options)
-        self.wait = WebDriverWait(self.driver, 30)
+            print("🔧 Configurações do Chrome aplicadas")
+            print(f"   - Headless: {headless_mode}")
+            print(f"   - User data dir: /tmp/chrome_profile")
 
-        self.driver.get("https://web.whatsapp.com")
+            print("🌐 Iniciando ChromeDriver...")
+            self.driver = webdriver.Chrome(options=chrome_options)
+            print("✅ ChromeDriver iniciado com sucesso")
 
-        if headless_mode:
-            print("📱 WhatsApp Web carregado (headless)")
-            print("⚠️  Para fazer login via SSH, use: HEADLESS=false python app.py")
-        else:
-            print("📱 WhatsApp Web carregado - Janela visível para login!")
-            print("🔐 Escaneie o QR Code agora...")
+            self.wait = WebDriverWait(self.driver, 30)
+
+            print("📡 Acessando WhatsApp Web...")
+            self.driver.get("https://web.whatsapp.com")
+            print(f"✅ Página carregada: {self.driver.title}")
+
+            if headless_mode:
+                print("📱 WhatsApp Web carregado (headless)")
+                print("⚠️  Para fazer login via SSH, use: HEADLESS=false python app.py")
+            else:
+                print("📱 WhatsApp Web carregado - Janela visível para login!")
+                print("🔐 Escaneie o QR Code agora...")
+
+        except Exception as e:
+            self.initialization_error = str(e)
+            print(f"❌ ERRO ao inicializar Chrome: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
 
     def verificar_login(self):
         """Verifica se está logado"""
@@ -215,6 +242,80 @@ class WhatsAppClient:
             self.driver.quit()
 
 
+def process_message_queue():
+    """Worker que processa a fila de mensagens com delay entre 60-90 segundos"""
+    print("🔄 Worker de fila de mensagens iniciado")
+
+    while True:
+        try:
+            # Pega próxima mensagem da fila (bloqueia até ter uma)
+            message_task = message_queue.get()
+
+            if message_task is None:  # Sinal para parar
+                break
+
+            task_id = message_task['id']
+            task_type = message_task['type']
+            task_data = message_task['data']
+
+            # Atualiza status para processando
+            queue_status[task_id]['status'] = 'processing'
+            queue_status[task_id]['started_at'] = datetime.now().isoformat()
+
+            print(f"📤 Processando mensagem {task_id} ({task_type})")
+
+            # Processa a mensagem
+            if not whatsapp_client or not whatsapp_client.is_ready:
+                queue_status[task_id]['status'] = 'error'
+                queue_status[task_id]['error'] = 'WhatsApp não está pronto'
+                queue_status[task_id]['completed_at'] = datetime.now().isoformat()
+                message_queue.task_done()
+                continue
+
+            with client_lock:
+                if task_type == 'text':
+                    result = whatsapp_client.enviar_mensagem(
+                        task_data['to'],
+                        task_data['text']
+                    )
+                elif task_type == 'image':
+                    result = whatsapp_client.enviar_imagem(
+                        task_data['to'],
+                        task_data['imageUrl'],
+                        task_data.get('caption')
+                    )
+                else:
+                    result = {'success': False, 'error': 'Tipo de mensagem inválido'}
+
+            # Atualiza status
+            if result['success']:
+                queue_status[task_id]['status'] = 'sent'
+                print(f"✅ Mensagem {task_id} enviada com sucesso")
+            else:
+                queue_status[task_id]['status'] = 'error'
+                queue_status[task_id]['error'] = result.get('error', 'Erro desconhecido')
+                print(f"❌ Erro ao enviar mensagem {task_id}: {result.get('error')}")
+
+            queue_status[task_id]['completed_at'] = datetime.now().isoformat()
+            queue_status[task_id]['result'] = result
+
+            message_queue.task_done()
+
+            # Delay aleatório entre 60 e 90 segundos (1 min a 1.5 min)
+            if not message_queue.empty():  # Só faz delay se tiver mais mensagens
+                delay = random.uniform(60, 90)
+                print(f"⏳ Aguardando {delay:.1f} segundos antes da próxima mensagem...")
+                time.sleep(delay)
+
+        except Exception as e:
+            print(f"❌ Erro no worker da fila: {e}")
+            if task_id in queue_status:
+                queue_status[task_id]['status'] = 'error'
+                queue_status[task_id]['error'] = str(e)
+                queue_status[task_id]['completed_at'] = datetime.now().isoformat()
+            message_queue.task_done()
+
+
 # Decorador para autenticação
 def require_auth(f):
     @wraps(f)
@@ -238,11 +339,22 @@ def require_auth(f):
 # Rotas da API
 @app.route('/health', methods=['GET'])
 def health():
-    """Verifica status da API"""
+    """Verifica status da API com detalhes do Selenium"""
     status = {
         "status": "online",
-        "whatsapp_ready": whatsapp_client.is_ready if whatsapp_client else False
+        "whatsapp_ready": whatsapp_client.is_ready if whatsapp_client else False,
+        "selenium_initialized": whatsapp_client.driver is not None if whatsapp_client else False,
+        "initialization_error": whatsapp_client.initialization_error if whatsapp_client else None
     }
+
+    # Adiciona informações extras se o driver estiver ativo
+    if whatsapp_client and whatsapp_client.driver:
+        try:
+            status["current_url"] = whatsapp_client.driver.current_url
+            status["page_title"] = whatsapp_client.driver.title
+        except:
+            status["driver_error"] = "Driver não está respondendo"
+
     return jsonify(status), 200
 
 
@@ -250,7 +362,7 @@ def health():
 @require_auth
 def send_text_message(instance):
     """
-    Envia mensagem de texto
+    Adiciona mensagem de texto na fila
     Body: {
         "messageData": {
             "to": "5511999999999@s.whatsapp.net",
@@ -271,13 +383,39 @@ def send_text_message(instance):
         if not whatsapp_client or not whatsapp_client.is_ready:
             return jsonify({"error": "WhatsApp não está pronto"}), 503
 
-        with client_lock:
-            result = whatsapp_client.enviar_mensagem(to, text)
+        # Gera ID único para a tarefa
+        task_id = str(uuid.uuid4())
 
-        if result['success']:
-            return jsonify({"status": "success", "data": result}), 200
-        else:
-            return jsonify({"status": "error", "message": result.get('error')}), 500
+        # Cria tarefa
+        task = {
+            'id': task_id,
+            'type': 'text',
+            'data': {
+                'to': to,
+                'text': text
+            }
+        }
+
+        # Adiciona na fila
+        message_queue.put(task)
+
+        # Registra status inicial
+        queue_status[task_id] = {
+            'status': 'queued',
+            'type': 'text',
+            'to': to,
+            'queued_at': datetime.now().isoformat(),
+            'position': message_queue.qsize()
+        }
+
+        print(f"📥 Mensagem {task_id} adicionada à fila (posição: {message_queue.qsize()})")
+
+        return jsonify({
+            "status": "success",
+            "message": "Mensagem adicionada à fila",
+            "task_id": task_id,
+            "queue_position": message_queue.qsize()
+        }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -287,7 +425,7 @@ def send_text_message(instance):
 @require_auth
 def send_image_message(instance):
     """
-    Envia imagem
+    Adiciona imagem na fila
     Body: {
         "messageData": {
             "to": "5511999999999@s.whatsapp.net",
@@ -310,16 +448,62 @@ def send_image_message(instance):
         if not whatsapp_client or not whatsapp_client.is_ready:
             return jsonify({"error": "WhatsApp não está pronto"}), 503
 
-        with client_lock:
-            result = whatsapp_client.enviar_imagem(to, image_url, caption)
+        # Gera ID único para a tarefa
+        task_id = str(uuid.uuid4())
 
-        if result['success']:
-            return jsonify({"status": "success", "data": result}), 200
-        else:
-            return jsonify({"status": "error", "message": result.get('error')}), 500
+        # Cria tarefa
+        task = {
+            'id': task_id,
+            'type': 'image',
+            'data': {
+                'to': to,
+                'imageUrl': image_url,
+                'caption': caption
+            }
+        }
+
+        # Adiciona na fila
+        message_queue.put(task)
+
+        # Registra status inicial
+        queue_status[task_id] = {
+            'status': 'queued',
+            'type': 'image',
+            'to': to,
+            'queued_at': datetime.now().isoformat(),
+            'position': message_queue.qsize()
+        }
+
+        print(f"📥 Imagem {task_id} adicionada à fila (posição: {message_queue.qsize()})")
+
+        return jsonify({
+            "status": "success",
+            "message": "Imagem adicionada à fila",
+            "task_id": task_id,
+            "queue_position": message_queue.qsize()
+        }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/queue/status/<task_id>', methods=['GET'])
+def get_task_status(task_id):
+    """Consulta status de uma mensagem específica"""
+    if task_id not in queue_status:
+        return jsonify({"error": "Task ID não encontrado"}), 404
+
+    return jsonify(queue_status[task_id]), 200
+
+
+@app.route('/queue/status', methods=['GET'])
+def get_queue_status():
+    """Retorna status de toda a fila"""
+    return jsonify({
+        "queue_size": message_queue.qsize(),
+        "total_tasks": len(queue_status),
+        "tasks": queue_status
+    }), 200
 
 
 @app.route('/qr', methods=['GET'])
@@ -364,8 +548,17 @@ if __name__ == '__main__':
     whatsapp_thread = threading.Thread(target=inicializar_whatsapp, daemon=True)
     whatsapp_thread.start()
 
+    # Inicia worker da fila de mensagens
+    queue_worker_thread = threading.Thread(target=process_message_queue, daemon=True)
+    queue_worker_thread.start()
+
     # Aguarda um pouco antes de iniciar o servidor
     time.sleep(3)
+
+    print("="*60)
+    print("🚀 WhatsApp API iniciada com sistema de fila")
+    print("⏱️  Delay entre mensagens: 60-90 segundos (aleatório)")
+    print("="*60)
 
     # Inicia servidor Flask
     port = int(os.getenv('PORT', 5000))
