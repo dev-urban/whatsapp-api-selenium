@@ -24,7 +24,10 @@ nixPkgs = [
 ]
 
 [phases.install]
-cmds = ["npm install --legacy-peer-deps"]
+cmds = [
+    "export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true",
+    "npm install --legacy-peer-deps"
+]
 
 [start]
 cmd = "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true PUPPETEER_EXECUTABLE_PATH=$(which chromium) npm start"

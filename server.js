@@ -1,3 +1,10 @@
+// Configurar variáveis de ambiente para Chromium
+process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = 'true';
+if (process.env.NIXPACKS_PATH) {
+    // Estamos no Railway/Nixpacks
+    process.env.LD_LIBRARY_PATH = '/nix/var/nix/profiles/default/lib:' + (process.env.LD_LIBRARY_PATH || '');
+}
+
 const express = require('express');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
