@@ -1,10 +1,3 @@
-// Configurar variáveis de ambiente para Chromium
-process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = 'true';
-if (process.env.NIXPACKS_PATH) {
-    // Estamos no Railway/Nixpacks
-    process.env.LD_LIBRARY_PATH = '/nix/var/nix/profiles/default/lib:' + (process.env.LD_LIBRARY_PATH || '');
-}
-
 const express = require('express');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
@@ -43,54 +36,9 @@ function requireAuth(req, res, next) {
     next();
 }
 
-// Detectar caminho do Chromium
-function findChromiumPath() {
-    console.log('🔍 Procurando Chromium...');
-    console.log('PATH:', process.env.PATH);
-    console.log('PUPPETEER_EXECUTABLE_PATH:', process.env.PUPPETEER_EXECUTABLE_PATH);
-
-    const possiblePaths = [
-        process.env.PUPPETEER_EXECUTABLE_PATH,
-        process.env.CHROME_BIN,
-        '/usr/bin/chromium',
-        '/usr/bin/chromium-browser',
-        '/usr/bin/google-chrome',
-        '/nix/var/nix/profiles/default/bin/chromium',
-        '/root/.nix-profile/bin/chromium'
-    ];
-
-    console.log('Testando caminhos possíveis...');
-    for (const chromePath of possiblePaths) {
-        console.log(`  Testando: ${chromePath} - Existe: ${chromePath ? fs.existsSync(chromePath) : 'undefined'}`);
-        if (chromePath && fs.existsSync(chromePath)) {
-            console.log(`✅ Chromium encontrado em: ${chromePath}`);
-            return chromePath;
-        }
-    }
-
-    // Tentar usar o comando 'which' para encontrar chromium
-    console.log('Tentando usar "which" para encontrar chromium...');
-    try {
-        const { execSync } = require('child_process');
-        const whichResult = execSync('which chromium 2>&1 || which chromium-browser 2>&1 || echo "not found"').toString().trim();
-        console.log(`Resultado do which: ${whichResult}`);
-
-        if (whichResult && whichResult !== 'not found' && fs.existsSync(whichResult)) {
-            console.log(`✅ Chromium encontrado via 'which': ${whichResult}`);
-            return whichResult;
-        }
-    } catch (e) {
-        console.log('Erro ao executar which:', e.message);
-    }
-
-    throw new Error('❌ Chromium não encontrado! Instale chromium ou defina PUPPETEER_EXECUTABLE_PATH');
-}
-
 // Inicializar WhatsApp Client
 function initializeWhatsApp() {
-    console.log('🚀 Iniciando WhatsApp Client...');
-
-    const chromiumPath = findChromiumPath();
+    console.log('🚀 Iniciando WhatsApp Client com Puppeteer bundled Chromium...');
 
     whatsappClient = new Client({
         authStrategy: new LocalAuth({
@@ -98,7 +46,6 @@ function initializeWhatsApp() {
         }),
         puppeteer: {
             headless: true,
-            executablePath: chromiumPath,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
