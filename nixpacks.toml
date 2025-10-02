@@ -30,4 +30,4 @@ cmds = [
 ]
 
 [start]
-cmd = "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true PUPPETEER_EXECUTABLE_PATH=$(which chromium) npm start"
+cmd = "./start.sh"

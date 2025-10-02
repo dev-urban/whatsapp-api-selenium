@@ -62,8 +62,19 @@ function findChromiumPath() {
         }
     }
 
-    console.log('⚠️ Chromium não encontrado em caminhos conhecidos, usando padrão do Puppeteer');
-    return undefined; // Deixa Puppeteer usar o padrão
+    // Tentar usar o comando 'which' para encontrar chromium
+    try {
+        const { execSync } = require('child_process');
+        const chromiumPath = execSync('which chromium 2>/dev/null || which chromium-browser 2>/dev/null').toString().trim();
+        if (chromiumPath && fs.existsSync(chromiumPath)) {
+            console.log(`✅ Chromium encontrado via 'which': ${chromiumPath}`);
+            return chromiumPath;
+        }
+    } catch (e) {
+        // Ignorar erro se which não funcionar
+    }
+
+    throw new Error('❌ Chromium não encontrado! Instale chromium ou defina PUPPETEER_EXECUTABLE_PATH');
 }
 
 // Inicializar WhatsApp Client
