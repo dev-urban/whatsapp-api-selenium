@@ -1,1 +1,0 @@
-# Migrado para Node.js - ver package.json
