@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+chrome_profile/
+.wwebjs_auth/
+*.log
+.DS_Store
+.env
