@@ -78,15 +78,34 @@ async function initializeWhatsApp() {
 
     // Evento: Desconectado
     whatsappClient.on('disconnected', (reason) => {
-        console.log('❌ WhatsApp desconectado:', reason);
+        console.log('❌ WhatsApp desconectado. Motivo:', reason);
         isReady = false;
         qrCodeData = null;
+
+        // Tenta reconectar após 5 segundos
+        console.log('🔄 Tentando reconectar em 5 segundos...');
+        setTimeout(() => {
+            console.log('🔄 Reinicializando WhatsApp Client...');
+            whatsappClient.initialize().catch(err => {
+                console.error('❌ Erro ao reinicializar:', err.message);
+            });
+        }, 5000);
     });
 
     // Evento: Falha de autenticação
     whatsappClient.on('auth_failure', (msg) => {
         console.error('❌ Falha na autenticação:', msg);
         isReady = false;
+    });
+
+    // Evento: Mudança de estado
+    whatsappClient.on('change_state', (state) => {
+        console.log('🔄 Estado alterado para:', state);
+    });
+
+    // Evento: Erro de conexão
+    whatsappClient.on('loading_screen', (percent, message) => {
+        console.log(`⏳ Carregando... ${percent}% - ${message}`);
     });
 
     whatsappClient.initialize();
@@ -246,8 +265,36 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'online',
         whatsapp_ready: isReady,
-        queue_size: messageQueue.length
+        whatsapp_state: whatsappClient ? whatsappClient.info?.wid?.user || 'initializing' : 'not_initialized',
+        queue_size: messageQueue.length,
+        history_size: messageHistory.length
     });
+});
+
+// Força reconexão do WhatsApp
+app.post('/reconnect', requireAuth, async (req, res) => {
+    try {
+        console.log('🔄 Reconexão forçada solicitada');
+
+        if (whatsappClient) {
+            await whatsappClient.destroy();
+        }
+
+        isReady = false;
+        qrCodeData = null;
+
+        await initializeWhatsApp();
+
+        res.json({
+            success: true,
+            message: 'Reconexão iniciada. Verifique /qr para novo QR Code se necessário.'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
 });
 
 // QR Code
