@@ -121,10 +121,21 @@ function saveToHistory(type, to, content, status, error = null, taskId = null) {
     return entry.id;
 }
 
+// Limpa número de telefone removendo caracteres especiais
+function cleanPhoneNumber(phone) {
+    // Remove espaços, parênteses, hífens e outros caracteres especiais
+    return phone.replace(/[\s()\-]/g, '');
+}
+
 // Envia mensagem de texto
 async function sendTextMessage(to, text, taskId = null) {
     try {
-        const chatId = to.includes('@') ? to : `${to}@c.us`;
+        // Limpa o número se não tiver @
+        let chatId = to;
+        if (!to.includes('@')) {
+            const cleanNumber = cleanPhoneNumber(to);
+            chatId = `${cleanNumber}@c.us`;
+        }
 
         // Simula digitação humana adicionando delay aleatório
         await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
@@ -144,7 +155,12 @@ async function sendTextMessage(to, text, taskId = null) {
 // Envia imagem
 async function sendImageMessage(to, imageUrl, caption, taskId = null) {
     try {
-        const chatId = to.includes('@') ? to : `${to}@c.us`;
+        // Limpa o número se não tiver @
+        let chatId = to;
+        if (!to.includes('@')) {
+            const cleanNumber = cleanPhoneNumber(to);
+            chatId = `${cleanNumber}@c.us`;
+        }
 
         // Baixa a imagem
         const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
