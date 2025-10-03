@@ -1,7 +1,7 @@
 {
   "name": "whatsapp-api",
-  "version": "1.0.0",
-  "description": "WhatsApp API com whatsapp-web.js e sistema de fila",
+  "version": "2.0.0",
+  "description": "WhatsApp API com wppconnect e sistema de fila",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,11 +12,9 @@
   "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
-    "whatsapp-web.js": "^1.23.0",
+    "@wppconnect-team/wppconnect": "^1.30.0",
     "qrcode": "^1.5.3",
-    "axios": "^1.6.2",
-    "puppeteer-core": "^21.0.0",
-    "@sparticuz/chromium": "^119.0.0"
+    "axios": "^1.6.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

@@ -1,5 +1,5 @@
 const express = require('express');
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const wppconnect = require('@wppconnect-team/wppconnect');
 const qrcode = require('qrcode');
 const axios = require('axios');
 const fs = require('fs');
@@ -39,7 +39,7 @@ function requireAuth(req, res, next) {
     next();
 }
 
-// Inicializar WhatsApp Client
+// Inicializar WhatsApp Client com wppconnect
 async function initializeWhatsApp() {
     if (isInitializing) {
         console.log('⚠️ Inicialização já em andamento, ignorando...');
@@ -47,104 +47,85 @@ async function initializeWhatsApp() {
     }
 
     isInitializing = true;
-    console.log('🚀 Iniciando WhatsApp Client com Chromium otimizado...');
+    console.log('🚀 Iniciando WhatsApp Client com wppconnect...');
 
-    const chromium = require('@sparticuz/chromium');
-
-    whatsappClient = new Client({
-        authStrategy: new LocalAuth({
-            dataPath: './.wwebjs_auth'
-        }),
-        puppeteer: {
-            headless: chromium.headless,
-            executablePath: await chromium.executablePath(),
-            args: [
-                ...chromium.args,
-                '--disable-blink-features=AutomationControlled', // Esconde automação
-                '--disable-features=IsolateOrigins,site-per-process'
-            ]
-        },
-        // Configurações para parecer mais humano
-        webVersionCache: {
-            type: 'remote',
-            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
-        }
-    });
-
-    // Evento: QR Code gerado
-    whatsappClient.on('qr', (qr) => {
-        console.log('📱 QR Code recebido');
-        qrcode.toDataURL(qr, (err, url) => {
-            qrCodeData = url;
+    try {
+        whatsappClient = await wppconnect.create({
+            session: 'whatsapp-session',
+            catchQR: (base64Qr, asciiQR, attempts, urlCode) => {
+                console.log('📱 QR Code recebido');
+                qrCodeData = base64Qr;
+            },
+            statusFind: (statusSession, session) => {
+                console.log('🔍 Status da sessão:', statusSession);
+                if (statusSession === 'isLogged') {
+                    console.log('✅ Sessão já autenticada!');
+                    isReady = true;
+                    qrCodeData = null;
+                    isInitializing = false;
+                } else if (statusSession === 'qrReadSuccess') {
+                    console.log('✅ QR Code escaneado com sucesso!');
+                } else if (statusSession === 'autocloseCalled') {
+                    console.log('⚠️ Navegador foi fechado');
+                    isReady = false;
+                    isInitializing = false;
+                } else if (statusSession === 'notLogged') {
+                    console.log('⚠️ Sessão não autenticada');
+                    isReady = false;
+                } else if (statusSession === 'deviceNotConnected') {
+                    console.log('❌ Dispositivo não conectado');
+                    isReady = false;
+                    isInitializing = false;
+                }
+            },
+            headless: true,
+            devtools: false,
+            useChrome: false, // Usa Chromium bundled
+            debug: false,
+            logQR: false,
+            browserArgs: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu',
+                '--disable-blink-features=AutomationControlled'
+            ],
+            autoClose: 60000 * 60, // 1 hora de inatividade
+            disableWelcome: true,
+            updatesLog: false
         });
-    });
 
-    // Evento: Autenticado
-    whatsappClient.on('authenticated', () => {
-        console.log('✅ Autenticado!');
-        qrCodeData = null;
-
-        // Timeout de segurança: se não receber ready em 30s, força ready
-        setTimeout(() => {
-            if (!isReady) {
-                console.log('⚠️ Timeout aguardando ready, forçando isReady=true');
-                isReady = true;
-                qrCodeData = null;
-            }
-        }, 30000);
-    });
-
-    // Evento: Pronto para uso
-    whatsappClient.on('ready', () => {
-        console.log('✅ WhatsApp Client está pronto!');
+        console.log('✅ WhatsApp Client criado e pronto!');
         isReady = true;
-        isInitializing = false;
         qrCodeData = null;
-    });
+        isInitializing = false;
 
-    // Evento: Desconectado
-    whatsappClient.on('disconnected', (reason) => {
-        console.log('❌ WhatsApp desconectado. Motivo:', reason);
+        // Listener de desconexão
+        whatsappClient.onStateChange((state) => {
+            console.log('🔄 Estado alterado para:', state);
+            if (state === 'CONFLICT' || state === 'UNLAUNCHED') {
+                console.log('❌ Cliente desconectado:', state);
+                isReady = false;
+            } else if (state === 'CONNECTED') {
+                console.log('✅ Cliente conectado');
+                isReady = true;
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Erro ao inicializar WhatsApp:', error);
         isReady = false;
         isInitializing = false;
-        qrCodeData = null;
 
-        // Se foi LOGOUT, não tenta reconectar automaticamente
-        if (reason === 'LOGOUT') {
-            console.log('⚠️ Desconectado por LOGOUT. Acesse /qr para novo QR Code.');
-            return;
-        }
-
-        // Tenta reconectar após 5 segundos para outros motivos
-        console.log('🔄 Tentando reconectar em 5 segundos...');
+        // Tenta reconectar após 10 segundos
+        console.log('🔄 Tentando reconectar em 10 segundos...');
         setTimeout(() => {
             initializeWhatsApp();
-        }, 5000);
-    });
-
-    // Evento: Falha de autenticação
-    whatsappClient.on('auth_failure', (msg) => {
-        console.error('❌ Falha na autenticação:', msg);
-        isReady = false;
-    });
-
-    // Evento: Mudança de estado
-    whatsappClient.on('change_state', (state) => {
-        console.log('🔄 Estado alterado para:', state);
-    });
-
-    // Evento: Erro de conexão
-    whatsappClient.on('loading_screen', (percent, message) => {
-        console.log(`⏳ Carregando... ${percent}% - ${message}`);
-    });
-
-    whatsappClient.initialize();
-}
-
-// Simula digitação humana
-async function typeWithHumanDelay(text) {
-    // Retorna o texto como está, o whatsapp-web.js já envia naturalmente
-    return text;
+        }, 10000);
+    }
 }
 
 // Salva mensagem no histórico
@@ -202,7 +183,7 @@ async function sendTextMessage(to, text, taskId = null) {
         console.log(`⏱️ Aguardando ${Math.round(delay/1000)}s antes de enviar...`);
         await new Promise(resolve => setTimeout(resolve, delay));
 
-        await whatsappClient.sendMessage(chatId, text);
+        await whatsappClient.sendText(chatId, text);
 
         console.log(`✅ Mensagem enviada para ${to}`);
         saveToHistory('text', to, text, 'sent', null, taskId);
@@ -235,15 +216,13 @@ async function sendImageMessage(to, imageUrl, caption, taskId = null) {
 
         console.log(`📞 Enviando imagem para: ${chatId}`);
 
-        // Baixa a imagem
-        const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-        const buffer = Buffer.from(response.data, 'binary');
-        const base64 = buffer.toString('base64');
-        const mimeType = response.headers['content-type'] || 'image/jpeg';
+        // Simula delay humano
+        const delay = Math.random() * 3000 + 2000;
+        console.log(`⏱️ Aguardando ${Math.round(delay/1000)}s antes de enviar imagem...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
 
-        const media = new MessageMedia(mimeType, base64);
-
-        await whatsappClient.sendMessage(chatId, media, { caption: caption || '' });
+        // wppconnect pode enviar direto pela URL ou por base64
+        await whatsappClient.sendImageFromBase64(chatId, imageUrl, 'image.jpg', caption || '');
 
         console.log(`✅ Imagem enviada para ${to}`);
         saveToHistory('image', to, { imageUrl, caption }, 'sent', null, taskId);
@@ -275,9 +254,9 @@ async function processMessageQueue() {
         let result;
 
         if (task.type === 'text') {
-            result = await sendTextMessage(task.data.to, task.data.text, task.taskId);
+            result = await sendTextMessage(task.data.to, task.data.text, task.id);
         } else if (task.type === 'image') {
-            result = await sendImageMessage(task.data.to, task.data.imageUrl, task.data.caption, task.taskId);
+            result = await sendImageMessage(task.data.to, task.data.imageUrl, task.data.caption, task.id);
         }
 
         // Atualiza status final
@@ -293,7 +272,7 @@ async function processMessageQueue() {
         queueStatus[task.id].completed_at = new Date().toISOString();
         queueStatus[task.id].result = result;
 
-        // Delay aleatório entre 90-150 segundos (1.5 a 2.5 minutos) - AUMENTADO para evitar ban
+        // Delay aleatório entre 90-150 segundos (1.5 a 2.5 minutos)
         if (messageQueue.length > 0) {
             const delay = Math.floor(Math.random() * 60000) + 90000; // 90000-150000ms
             console.log(`⏳ Aguardando ${(delay / 1000).toFixed(1)}s antes da próxima mensagem...`);
@@ -307,11 +286,22 @@ async function processMessageQueue() {
 // ==================== ROTAS DA API ====================
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+    let phoneNumber = 'not_initialized';
+
+    if (whatsappClient && isReady) {
+        try {
+            const hostDevice = await whatsappClient.getHostDevice();
+            phoneNumber = hostDevice.id.user || 'unknown';
+        } catch (error) {
+            phoneNumber = 'error_fetching';
+        }
+    }
+
     res.json({
         status: 'online',
         whatsapp_ready: isReady,
-        whatsapp_state: whatsappClient ? whatsappClient.info?.wid?.user || 'initializing' : 'not_initialized',
+        whatsapp_state: phoneNumber,
         queue_size: messageQueue.length,
         history_size: messageHistory.length
     });
@@ -323,11 +313,12 @@ app.post('/reconnect', requireAuth, async (req, res) => {
         console.log('🔄 Reconexão forçada solicitada');
 
         if (whatsappClient) {
-            await whatsappClient.destroy();
+            await whatsappClient.close();
         }
 
         isReady = false;
         qrCodeData = null;
+        isInitializing = false;
 
         await initializeWhatsApp();
 
@@ -349,25 +340,18 @@ app.post('/reset-session', requireAuth, async (req, res) => {
         console.log('🗑️ Limpando sessão corrompida...');
 
         if (whatsappClient) {
-            await whatsappClient.destroy();
+            await whatsappClient.close();
         }
 
         isReady = false;
         qrCodeData = null;
+        isInitializing = false;
 
-        // Remove arquivos de autenticação
-        const fs = require('fs');
-        const authPath = './.wwebjs_auth';
-        const cachePath = './.wwebjs_cache';
-
-        if (fs.existsSync(authPath)) {
-            fs.rmSync(authPath, { recursive: true, force: true });
-            console.log('🗑️ Pasta .wwebjs_auth removida');
-        }
-
-        if (fs.existsSync(cachePath)) {
-            fs.rmSync(cachePath, { recursive: true, force: true });
-            console.log('🗑️ Pasta .wwebjs_cache removida');
+        // Remove tokens de autenticação
+        const tokensPath = path.join(__dirname, 'tokens');
+        if (fs.existsSync(tokensPath)) {
+            fs.rmSync(tokensPath, { recursive: true, force: true });
+            console.log('🗑️ Pasta tokens removida');
         }
 
         await initializeWhatsApp();
@@ -590,10 +574,10 @@ app.get('/queue/status', (req, res) => {
 app.get('/queue/list', (req, res) => {
     const queueList = messageQueue.map((item, index) => ({
         position: index + 1,
-        taskId: item.taskId,
+        taskId: item.id,
         type: item.type,
-        to: item.to,
-        addedAt: queueStatus[item.taskId]?.queued_at || null
+        to: item.data.to,
+        addedAt: queueStatus[item.id]?.queued_at || null
     }));
 
     res.json({
@@ -657,7 +641,7 @@ initializeWhatsApp();
 // Inicia servidor
 app.listen(PORT, '0.0.0.0', () => {
     console.log('='.repeat(60));
-    console.log('🚀 WhatsApp API iniciada com sistema de fila');
+    console.log('🚀 WhatsApp API com wppconnect iniciada');
     console.log(`📡 Servidor rodando na porta ${PORT}`);
     console.log('⏱️  Delay entre mensagens: 90-150 segundos (aleatório)');
     console.log('='.repeat(60));
