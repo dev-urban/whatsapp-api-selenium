@@ -65,6 +65,12 @@ async function initializeWhatsApp() {
                     isInitializing = false;
                 } else if (statusSession === 'qrReadSuccess') {
                     console.log('✅ QR Code escaneado com sucesso!');
+                    // Aguarda um pouco antes de marcar como pronto
+                    setTimeout(() => {
+                        isReady = true;
+                        qrCodeData = null;
+                        isInitializing = false;
+                    }, 5000);
                 } else if (statusSession === 'autocloseCalled') {
                     console.log('⚠️ Navegador foi fechado');
                     isReady = false;
@@ -81,6 +87,9 @@ async function initializeWhatsApp() {
                     isReady = true;
                     qrCodeData = null;
                     isInitializing = false;
+                } else if (statusSession === 'desconnectedMobile') {
+                    console.log('⚠️ WhatsApp desconectado do celular');
+                    isReady = false;
                 }
             },
             headless: true,
@@ -98,14 +107,18 @@ async function initializeWhatsApp() {
                 '--disable-gpu',
                 '--disable-blink-features=AutomationControlled',
                 '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process'
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             ],
             autoClose: 0,
             disableWelcome: true,
             updatesLog: false,
             createPathFileToken: true,
             waitForLogin: true,
-            logLevel: 'error' // Reduz logs verbosos
+            logLevel: 'error',
+            puppeteerOptions: {
+                userDataDir: './tokens/whatsapp-session'
+            }
         });
 
         console.log('✅ WhatsApp Client criado e pronto!');
