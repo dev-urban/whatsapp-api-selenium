@@ -21,6 +21,7 @@ const queueStatus = {};
 let isProcessingQueue = false;
 const messageHistory = []; // Histórico de mensagens enviadas
 const MAX_HISTORY = 1000; // Máximo de mensagens no histórico
+let isInitializing = false; // Flag para evitar múltiplas inicializações
 
 // Middleware de autenticação
 function requireAuth(req, res, next) {
@@ -40,6 +41,12 @@ function requireAuth(req, res, next) {
 
 // Inicializar WhatsApp Client
 async function initializeWhatsApp() {
+    if (isInitializing) {
+        console.log('⚠️ Inicialização já em andamento, ignorando...');
+        return;
+    }
+
+    isInitializing = true;
     console.log('🚀 Iniciando WhatsApp Client com Chromium otimizado...');
 
     const chromium = require('@sparticuz/chromium');
@@ -82,6 +89,7 @@ async function initializeWhatsApp() {
     whatsappClient.on('ready', () => {
         console.log('✅ WhatsApp Client está pronto!');
         isReady = true;
+        isInitializing = false;
         qrCodeData = null;
     });
 
@@ -89,15 +97,19 @@ async function initializeWhatsApp() {
     whatsappClient.on('disconnected', (reason) => {
         console.log('❌ WhatsApp desconectado. Motivo:', reason);
         isReady = false;
+        isInitializing = false;
         qrCodeData = null;
 
-        // Tenta reconectar após 5 segundos
+        // Se foi LOGOUT, não tenta reconectar automaticamente
+        if (reason === 'LOGOUT') {
+            console.log('⚠️ Desconectado por LOGOUT. Acesse /qr para novo QR Code.');
+            return;
+        }
+
+        // Tenta reconectar após 5 segundos para outros motivos
         console.log('🔄 Tentando reconectar em 5 segundos...');
         setTimeout(() => {
-            console.log('🔄 Reinicializando WhatsApp Client...');
-            whatsappClient.initialize().catch(err => {
-                console.error('❌ Erro ao reinicializar:', err.message);
-            });
+            initializeWhatsApp();
         }, 5000);
     });
 
