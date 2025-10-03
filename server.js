@@ -130,9 +130,13 @@ function cleanPhoneNumber(phone) {
 // Envia mensagem de texto
 async function sendTextMessage(to, text, taskId = null) {
     try {
-        // Limpa o número se não tiver @
-        let chatId = to;
-        if (!to.includes('@')) {
+        // Separa número e domínio se tiver @
+        let chatId;
+        if (to.includes('@')) {
+            const [number, domain] = to.split('@');
+            const cleanNumber = cleanPhoneNumber(number);
+            chatId = `${cleanNumber}@${domain}`;
+        } else {
             const cleanNumber = cleanPhoneNumber(to);
             chatId = `${cleanNumber}@c.us`;
         }
@@ -155,9 +159,13 @@ async function sendTextMessage(to, text, taskId = null) {
 // Envia imagem
 async function sendImageMessage(to, imageUrl, caption, taskId = null) {
     try {
-        // Limpa o número se não tiver @
-        let chatId = to;
-        if (!to.includes('@')) {
+        // Separa número e domínio se tiver @
+        let chatId;
+        if (to.includes('@')) {
+            const [number, domain] = to.split('@');
+            const cleanNumber = cleanPhoneNumber(number);
+            chatId = `${cleanNumber}@${domain}`;
+        } else {
             const cleanNumber = cleanPhoneNumber(to);
             chatId = `${cleanNumber}@c.us`;
         }
