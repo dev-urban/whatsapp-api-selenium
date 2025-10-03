@@ -158,6 +158,11 @@ function cleanPhoneNumber(phone) {
 // Envia mensagem de texto
 async function sendTextMessage(to, text, taskId = null) {
     try {
+        // Verifica se está realmente conectado
+        if (!isReady || !whatsappClient) {
+            throw new Error('WhatsApp não está conectado');
+        }
+
         // Separa número e domínio se tiver @
         let chatId;
         if (to.includes('@')) {
@@ -168,6 +173,8 @@ async function sendTextMessage(to, text, taskId = null) {
             const cleanNumber = cleanPhoneNumber(to);
             chatId = `${cleanNumber}@c.us`;
         }
+
+        console.log(`📞 Enviando para: ${chatId}`);
 
         // Simula digitação humana adicionando delay aleatório
         await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
@@ -187,6 +194,11 @@ async function sendTextMessage(to, text, taskId = null) {
 // Envia imagem
 async function sendImageMessage(to, imageUrl, caption, taskId = null) {
     try {
+        // Verifica se está realmente conectado
+        if (!isReady || !whatsappClient) {
+            throw new Error('WhatsApp não está conectado');
+        }
+
         // Separa número e domínio se tiver @
         let chatId;
         if (to.includes('@')) {
@@ -197,6 +209,8 @@ async function sendImageMessage(to, imageUrl, caption, taskId = null) {
             const cleanNumber = cleanPhoneNumber(to);
             chatId = `${cleanNumber}@c.us`;
         }
+
+        console.log(`📞 Enviando imagem para: ${chatId}`);
 
         // Baixa a imagem
         const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
