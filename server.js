@@ -363,8 +363,20 @@ app.get('/qr', (req, res) => {
 
 // Enviar mensagem de texto
 app.post('/rest/sendMessage/:instance/text', requireAuth, (req, res) => {
+    const { instance } = req.params;
+
+    console.log(`📨 Recebida requisição de mensagem para instância: ${instance}`);
+    console.log(`📊 Status: isReady=${isReady}, whatsappClient=${!!whatsappClient}`);
+
     if (!isReady) {
-        return res.status(503).json({ error: 'WhatsApp não está pronto' });
+        console.log('❌ Rejeitada: WhatsApp não está pronto');
+        return res.status(503).json({
+            name: 'FORBIDDEN',
+            message: 'Instance not logged in',
+            statusCode: 503,
+            instance: instance,
+            isReady: isReady
+        });
     }
 
     const { messageData } = req.body;
@@ -409,8 +421,20 @@ app.post('/rest/sendMessage/:instance/text', requireAuth, (req, res) => {
 
 // Enviar imagem
 app.post('/rest/sendMessage/:instance/image', requireAuth, (req, res) => {
+    const { instance } = req.params;
+
+    console.log(`📨 Recebida requisição de imagem para instância: ${instance}`);
+    console.log(`📊 Status: isReady=${isReady}, whatsappClient=${!!whatsappClient}`);
+
     if (!isReady) {
-        return res.status(503).json({ error: 'WhatsApp não está pronto' });
+        console.log('❌ Rejeitada: WhatsApp não está pronto');
+        return res.status(503).json({
+            name: 'FORBIDDEN',
+            message: 'Instance not logged in',
+            statusCode: 503,
+            instance: instance,
+            isReady: isReady
+        });
     }
 
     const { messageData } = req.body;
