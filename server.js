@@ -123,8 +123,8 @@ function saveToHistory(type, to, content, status, error = null, taskId = null) {
 
 // Limpa número de telefone removendo caracteres especiais
 function cleanPhoneNumber(phone) {
-    // Remove espaços, parênteses, hífens e outros caracteres especiais
-    return phone.replace(/[\s()\-]/g, '');
+    // Remove tudo que não seja dígito
+    return phone.replace(/[^\d]/g, '');
 }
 
 // Envia mensagem de texto
