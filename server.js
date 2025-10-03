@@ -76,11 +76,16 @@ async function initializeWhatsApp() {
                     console.log('❌ Dispositivo não conectado');
                     isReady = false;
                     isInitializing = false;
+                } else if (statusSession === 'inChat') {
+                    console.log('✅ Sessão ativa no chat!');
+                    isReady = true;
+                    qrCodeData = null;
+                    isInitializing = false;
                 }
             },
             headless: true,
             devtools: false,
-            useChrome: false, // Usa Chromium bundled
+            useChrome: false,
             debug: false,
             logQR: false,
             browserArgs: [
@@ -91,11 +96,15 @@ async function initializeWhatsApp() {
                 '--no-first-run',
                 '--no-zygote',
                 '--disable-gpu',
-                '--disable-blink-features=AutomationControlled'
+                '--disable-blink-features=AutomationControlled',
+                '--disable-web-security',
+                '--disable-features=IsolateOrigins,site-per-process'
             ],
-            autoClose: 60000 * 60, // 1 hora de inatividade
+            autoClose: 0, // Desabilita auto-close
             disableWelcome: true,
-            updatesLog: false
+            updatesLog: false,
+            createPathFileToken: true,
+            waitForLogin: true
         });
 
         console.log('✅ WhatsApp Client criado e pronto!');
