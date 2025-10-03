@@ -67,6 +67,15 @@ async function initializeWhatsApp() {
     whatsappClient.on('authenticated', () => {
         console.log('✅ Autenticado!');
         qrCodeData = null;
+
+        // Timeout de segurança: se não receber ready em 30s, força ready
+        setTimeout(() => {
+            if (!isReady) {
+                console.log('⚠️ Timeout aguardando ready, forçando isReady=true');
+                isReady = true;
+                qrCodeData = null;
+            }
+        }, 30000);
     });
 
     // Evento: Pronto para uso
@@ -290,6 +299,48 @@ app.post('/reconnect', requireAuth, async (req, res) => {
             message: 'Reconexão iniciada. Verifique /qr para novo QR Code se necessário.'
         });
     } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Limpa sessão e reinicia (útil quando sessão está corrompida)
+app.post('/reset-session', requireAuth, async (req, res) => {
+    try {
+        console.log('🗑️ Limpando sessão corrompida...');
+
+        if (whatsappClient) {
+            await whatsappClient.destroy();
+        }
+
+        isReady = false;
+        qrCodeData = null;
+
+        // Remove arquivos de autenticação
+        const fs = require('fs');
+        const authPath = './.wwebjs_auth';
+        const cachePath = './.wwebjs_cache';
+
+        if (fs.existsSync(authPath)) {
+            fs.rmSync(authPath, { recursive: true, force: true });
+            console.log('🗑️ Pasta .wwebjs_auth removida');
+        }
+
+        if (fs.existsSync(cachePath)) {
+            fs.rmSync(cachePath, { recursive: true, force: true });
+            console.log('🗑️ Pasta .wwebjs_cache removida');
+        }
+
+        await initializeWhatsApp();
+
+        res.json({
+            success: true,
+            message: 'Sessão limpa. Novo QR Code gerado. Acesse /qr para escanear.'
+        });
+    } catch (error) {
+        console.error('❌ Erro ao limpar sessão:', error);
         res.status(500).json({
             success: false,
             error: error.message
