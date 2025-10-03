@@ -53,7 +53,7 @@ async function initializeWhatsApp() {
         whatsappClient = await wppconnect.create({
             session: 'whatsapp-session',
             catchQR: (base64Qr, asciiQR, attempts, urlCode) => {
-                console.log('📱 QR Code recebido');
+                console.log(`📱 QR Code recebido (tentativa ${attempts})`);
                 qrCodeData = base64Qr;
             },
             statusFind: (statusSession, session) => {
@@ -100,11 +100,12 @@ async function initializeWhatsApp() {
                 '--disable-web-security',
                 '--disable-features=IsolateOrigins,site-per-process'
             ],
-            autoClose: 0, // Desabilita auto-close
+            autoClose: 0,
             disableWelcome: true,
             updatesLog: false,
             createPathFileToken: true,
-            waitForLogin: true
+            waitForLogin: true,
+            logLevel: 'error' // Reduz logs verbosos
         });
 
         console.log('✅ WhatsApp Client criado e pronto!');
