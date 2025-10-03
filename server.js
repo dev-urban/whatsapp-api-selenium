@@ -19,6 +19,8 @@ let qrCodeData = null;
 const messageQueue = [];
 const queueStatus = {};
 let isProcessingQueue = false;
+const messageHistory = []; // Histórico de mensagens enviadas
+const MAX_HISTORY = 1000; // Máximo de mensagens no histórico
 
 // Middleware de autenticação
 function requireAuth(req, res, next) {
@@ -96,8 +98,31 @@ async function typeWithHumanDelay(text) {
     return text;
 }
 
+// Salva mensagem no histórico
+function saveToHistory(type, to, content, status, error = null, taskId = null) {
+    const entry = {
+        id: Date.now() + Math.random().toString(36).substr(2, 9),
+        type,
+        to,
+        content,
+        status,
+        error,
+        taskId,
+        timestamp: new Date().toISOString()
+    };
+
+    messageHistory.unshift(entry);
+
+    // Limita o tamanho do histórico
+    if (messageHistory.length > MAX_HISTORY) {
+        messageHistory.pop();
+    }
+
+    return entry.id;
+}
+
 // Envia mensagem de texto
-async function sendTextMessage(to, text) {
+async function sendTextMessage(to, text, taskId = null) {
     try {
         const chatId = to.includes('@') ? to : `${to}@c.us`;
 
@@ -107,15 +132,17 @@ async function sendTextMessage(to, text) {
         await whatsappClient.sendMessage(chatId, text);
 
         console.log(`✅ Mensagem enviada para ${to}`);
+        saveToHistory('text', to, text, 'sent', null, taskId);
         return { success: true, to };
     } catch (error) {
         console.error(`❌ Erro ao enviar mensagem para ${to}:`, error.message);
+        saveToHistory('text', to, text, 'failed', error.message, taskId);
         return { success: false, error: error.message };
     }
 }
 
 // Envia imagem
-async function sendImageMessage(to, imageUrl, caption) {
+async function sendImageMessage(to, imageUrl, caption, taskId = null) {
     try {
         const chatId = to.includes('@') ? to : `${to}@c.us`;
 
@@ -130,9 +157,11 @@ async function sendImageMessage(to, imageUrl, caption) {
         await whatsappClient.sendMessage(chatId, media, { caption: caption || '' });
 
         console.log(`✅ Imagem enviada para ${to}`);
+        saveToHistory('image', to, { imageUrl, caption }, 'sent', null, taskId);
         return { success: true, to };
     } catch (error) {
         console.error(`❌ Erro ao enviar imagem para ${to}:`, error.message);
+        saveToHistory('image', to, { imageUrl, caption }, 'failed', error.message, taskId);
         return { success: false, error: error.message };
     }
 }
@@ -157,9 +186,9 @@ async function processMessageQueue() {
         let result;
 
         if (task.type === 'text') {
-            result = await sendTextMessage(task.data.to, task.data.text);
+            result = await sendTextMessage(task.data.to, task.data.text, task.taskId);
         } else if (task.type === 'image') {
-            result = await sendImageMessage(task.data.to, task.data.imageUrl, task.data.caption);
+            result = await sendImageMessage(task.data.to, task.data.imageUrl, task.data.caption, task.taskId);
         }
 
         // Atualiza status final
@@ -371,6 +400,69 @@ app.get('/queue/status', (req, res) => {
         queue_size: messageQueue.length,
         total_tasks: Object.keys(queueStatus).length,
         tasks: queueStatus
+    });
+});
+
+// Visualizar fila completa (mensagens pendentes)
+app.get('/queue/list', (req, res) => {
+    const queueList = messageQueue.map((item, index) => ({
+        position: index + 1,
+        taskId: item.taskId,
+        type: item.type,
+        to: item.to,
+        addedAt: queueStatus[item.taskId]?.queued_at || null
+    }));
+
+    res.json({
+        total: messageQueue.length,
+        isProcessing: isProcessingQueue,
+        messages: queueList
+    });
+});
+
+// Histórico de mensagens
+app.get('/history', (req, res) => {
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+    const status = req.query.status; // 'sent', 'failed', ou null para todos
+    const type = req.query.type; // 'text', 'image', ou null para todos
+
+    let filtered = messageHistory;
+
+    if (status) {
+        filtered = filtered.filter(m => m.status === status);
+    }
+
+    if (type) {
+        filtered = filtered.filter(m => m.type === type);
+    }
+
+    const paginated = filtered.slice(offset, offset + limit);
+
+    res.json({
+        total: filtered.length,
+        limit,
+        offset,
+        messages: paginated
+    });
+});
+
+// Estatísticas do histórico
+app.get('/history/stats', (req, res) => {
+    const sent = messageHistory.filter(m => m.status === 'sent').length;
+    const failed = messageHistory.filter(m => m.status === 'failed').length;
+    const textMessages = messageHistory.filter(m => m.type === 'text').length;
+    const imageMessages = messageHistory.filter(m => m.type === 'image').length;
+
+    res.json({
+        total: messageHistory.length,
+        sent,
+        failed,
+        successRate: messageHistory.length > 0 ? ((sent / messageHistory.length) * 100).toFixed(2) + '%' : '0%',
+        byType: {
+            text: textMessages,
+            image: imageMessages
+        }
     });
 });
 
