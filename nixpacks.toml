@@ -15,7 +15,8 @@ aptPkgs = [
     "libpango-1.0-0",
     "libcairo2",
     "libatspi2.0-0",
-    "libxshmfence1"
+    "libxshmfence1",
+    "libasound2"
 ]
 
 [phases.install]
