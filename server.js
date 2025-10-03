@@ -58,7 +58,16 @@ async function initializeWhatsApp() {
         puppeteer: {
             headless: chromium.headless,
             executablePath: await chromium.executablePath(),
-            args: chromium.args
+            args: [
+                ...chromium.args,
+                '--disable-blink-features=AutomationControlled', // Esconde automação
+                '--disable-features=IsolateOrigins,site-per-process'
+            ]
+        },
+        // Configurações para parecer mais humano
+        webVersionCache: {
+            type: 'remote',
+            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
         }
     });
 
@@ -188,8 +197,10 @@ async function sendTextMessage(to, text, taskId = null) {
 
         console.log(`📞 Enviando para: ${chatId}`);
 
-        // Simula digitação humana adicionando delay aleatório
-        await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
+        // Simula digitação humana adicionando delay aleatório maior (2-5 segundos)
+        const delay = Math.random() * 3000 + 2000; // 2000-5000ms
+        console.log(`⏱️ Aguardando ${Math.round(delay/1000)}s antes de enviar...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
 
         await whatsappClient.sendMessage(chatId, text);
 
@@ -282,9 +293,9 @@ async function processMessageQueue() {
         queueStatus[task.id].completed_at = new Date().toISOString();
         queueStatus[task.id].result = result;
 
-        // Delay aleatório entre 60-90 segundos (1 a 1.5 minutos)
+        // Delay aleatório entre 90-150 segundos (1.5 a 2.5 minutos) - AUMENTADO para evitar ban
         if (messageQueue.length > 0) {
-            const delay = Math.floor(Math.random() * 30000) + 60000; // 60000-90000ms
+            const delay = Math.floor(Math.random() * 60000) + 90000; // 90000-150000ms
             console.log(`⏳ Aguardando ${(delay / 1000).toFixed(1)}s antes da próxima mensagem...`);
             await new Promise(resolve => setTimeout(resolve, delay));
         }
@@ -648,6 +659,6 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('='.repeat(60));
     console.log('🚀 WhatsApp API iniciada com sistema de fila');
     console.log(`📡 Servidor rodando na porta ${PORT}`);
-    console.log('⏱️  Delay entre mensagens: 60-90 segundos (aleatório)');
+    console.log('⏱️  Delay entre mensagens: 90-150 segundos (aleatório)');
     console.log('='.repeat(60));
 });
