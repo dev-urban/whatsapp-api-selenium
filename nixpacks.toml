@@ -16,7 +16,7 @@ aptPkgs = [
     "libcairo2",
     "libatspi2.0-0",
     "libxshmfence1",
-    "libasound2"
+    "libasound2t64"
 ]
 
 [phases.install]
