@@ -199,14 +199,35 @@ async function sendTextMessage(to, text, taskId = null) {
             chatId = `${cleanNumber}@c.us`;
         }
 
-        console.log(`📞 Enviando para: ${chatId}`);
+        console.log(`📞 Número original: ${to}`);
+        console.log(`📞 ChatId formatado: ${chatId}`);
+
+        // Valida se o número existe no WhatsApp e obtém o ID correto
+        try {
+            const numberCheck = await whatsappClient.checkNumberStatus(chatId);
+            console.log(`✅ Validação do número:`, JSON.stringify(numberCheck, null, 2));
+
+            if (numberCheck && numberCheck.numberExists) {
+                // Usa o ID retornado pela validação (pode ser diferente do que enviamos)
+                if (numberCheck.id && numberCheck.id._serialized) {
+                    chatId = numberCheck.id._serialized;
+                    console.log(`📞 ChatId atualizado para: ${chatId}`);
+                }
+            } else {
+                throw new Error(`Número não existe no WhatsApp`);
+            }
+        } catch (validationError) {
+            console.error(`⚠️ Erro ao validar número:`, validationError.message);
+            throw new Error(`Número ${to} não foi encontrado no WhatsApp`);
+        }
 
         // Simula digitação humana adicionando delay aleatório maior (2-5 segundos)
         const delay = Math.random() * 3000 + 2000; // 2000-5000ms
         console.log(`⏱️ Aguardando ${Math.round(delay/1000)}s antes de enviar...`);
         await new Promise(resolve => setTimeout(resolve, delay));
 
-        await whatsappClient.sendText(chatId, text);
+        const result = await whatsappClient.sendText(chatId, text);
+        console.log(`✅ Resultado do envio:`, JSON.stringify(result, null, 2));
 
         console.log(`✅ Mensagem enviada para ${to}`);
         saveToHistory('text', to, text, 'sent', null, taskId);
